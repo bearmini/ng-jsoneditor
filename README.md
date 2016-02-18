@@ -12,7 +12,7 @@ Angular version of the insanely cool [jsoneditor](https://github.com/josdejong/j
 You can get it from [Bower](http://bower.io/)
 
 ```sh
-bower install angular-tools/ng-jsoneditor
+bower install bearmini/ng-jsoneditor
 ```
 
 This will copy the ng-jsoneditor.js files into a `bower_components` folder, along with its dependencies. Load the script files in your application:
@@ -46,7 +46,7 @@ http://jsfiddle.net/angulartools/sd3at5ek/
 ```javascript
 myAppModule.controller('MyController', [ '$scope', function($scope) {
   $scope.obj = {data: json, options: { mode: 'tree' }};
-  
+
   $scope.btnClick = function() {
     $scope.obj.options.mode = 'code'; //should switch you to code view
   }
