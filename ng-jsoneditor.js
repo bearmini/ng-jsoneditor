@@ -4,152 +4,164 @@
   module.directive('ngJsoneditor', JsonEditorDirective);
 
   JsonEditorDirective.$inject = [
+    '$log',
     '$timeout'
   ];
 
   function JsonEditorDirective(
+    $log,
     $timeout
   ) {
+    void($log);
+
     return {
-      restrict: 'A',
+      restrict: 'EA',
       require: 'ngModel',
       scope: {
-        'options': '=',
-        'ngJsoneditor': '=',
-        'preferText': '='
+        options: '=',
+        preferText: '=',
+        expanded: '='
       },
       link: link
     };
 
     function link(scope, element, attrs, ngModel) {
-      var internalTrigger = false;
-      var editor;
-      var debounceTo, debounceFrom;
+      var globals = {};
 
       if (!angular.isDefined(window.JSONEditor)) {
         throw new Error("Please add the jsoneditor.js script first!");
       }
 
-      scope.$watch('options', onOptionChanged, true);
-      scope.$watch('ngModel', updateJsonEditor, true);
-
-      editor = _createEditor();
-
-      ngModel.$render = updateJsonEditor;
       scope.$watch(function() {
-        return ngModel.$modelValue;
-      }, updateJsonEditor, true);
+        return element.is(':visible');
+      }, function(visible) {
+        $log.debug('got visible.', visible);
+        if (visible) {
+          createJSONEditor(scope.options);
+        } else {
+          removeEditor();
+        }
+      });
 
+      scope.$watch('options', onOptionsChanged, true);
+      scope.$watch('expanded', onExpandedChanged);
+
+      ngModel.$render = onModelChangedExternally;
       return;
 
-      function _createEditor() {
-        var defaults = {};
-        var settings = angular.extend({}, defaults, scope.options);
-        var theOptions = angular.extend({}, settings, {
-          change: function() {
-            if (typeof debounceTo !== 'undefined') {
-              $timeout.cancel(debounceTo);
-            }
+      function getEditor() {
+        return globals.editor;
+      }
 
-            debounceTo = $timeout(function() {
-              if (editor) {
-                internalTrigger = true;
-                var error = undefined;
-                try {
-                  ngModel.$setViewValue(scope.preferText === true ? editor.getText() : editor.get());
-                } catch (err) {
-                  error = err;
-                }
+      function setEditor(editor) {
+        globals.editor = editor;
+      }
 
-                if (settings && settings.hasOwnProperty('change')) {
-                  settings.change(error);
-                }
-              }
-            }, getTimeoutOption());
-          }
-        });
+      function removeEditor() {
+        delete globals.editor;
+      }
 
+      function createJSONEditor(options) {
+        removeEditor();
         element.html('');
-
-        var instance = new JSONEditor(element[0], theOptions);
-
-        if (scope.ngJsoneditor instanceof Function) {
-          $timeout(function() {
-            scope.ngJsoneditor(instance);
-          });
+        $log.debug('[ng-jsoneditor] createJSONEditor(): options ==', options);
+        if (options === undefined || options === null) {
+          options = {};
         }
-
-        return instance;
+        options.onChange = onModelChangedInternally;
+        options.onModeChange = onEditorModeChanged;
+        var newEditor = new JSONEditor(element[0], options);
+        setTextFromModelToJSONEditor(newEditor);
+        setEditor(newEditor);
       }
 
-      function getTimeoutOption() {
-        var defaultValue = 100;
-        if (scope.options === undefined || scope.options === null) {
-          return defaultValue;
+      function onOptionsChanged(newOptions, oldOptions) {
+        if (newOptions === undefined || newOptions === null) {
+          newOptions = {};
         }
-        return scope.options.timeout;
-      }
-
-      function onOptionChanged(newValue, oldValue) {
-        if (newValue === undefined || newValue === null) {
-          return;
+        var e = getEditor();
+        if (e === undefined || e === null) {
+          createJSONEditor(newOptions);
+          e = getEditor();
         }
 
-        if (newValue.hasOwnProperty('expanded')) {
-          var timeout = getTimeoutOption();
-          if (newValue.expanded) {
-            $timeout(editor.expandAll, timeout);
-          } else {
-            $timeout(editor.collapseAll, timeout);
-          }
-        }
-
-        for (var k in newValue) {
-          if (!newValue.hasOwnProperty(k)) {
+        for (var k in newOptions) {
+          if (!newOptions.hasOwnProperty(k)) {
             continue;
           }
 
-          if (newValue[k] === oldValue[k]) {
+          if (newOptions[k] === oldOptions[k]) {
             continue;
           }
 
-          var v = newValue[k];
+          var v = newOptions[k];
 
           if (k === 'mode') {
-            editor.setMode(v);
+            e.setMode(v);
           } else if (k === 'name') {
-            editor.setName(v);
+            e.setName(v);
           } else {
             //other settings cannot be changed without re-creating the JsonEditor
-            editor = _createEditor(newValue);
-            updateJsonEditor();
+            createJSONEditor(newOptions);
             return;
           }
         }
       }
 
-      function updateJsonEditor() {
-        console.log('updateJsonEditor(): internalTrigger ==', internalTrigger);
-        if (internalTrigger) {
-          //ignore if called by $setViewValue (after debounceTo)
-          internalTrigger = false;
+      function setTextFromModelToJSONEditor(editor) {
+        if (editor === undefined || editor === null) {
           return;
         }
 
-        if (typeof debounceFrom !== 'undefined') {
-          $timeout.cancel(debounceFrom);
+        if ((scope.preferText === true) && !angular.isObject(ngModel.$viewValue)) {
+          editor.setText(ngModel.$viewValue || '{}');
+        } else {
+          editor.set(ngModel.$viewValue || {});
         }
-
-        debounceFrom = $timeout(function() {
-          console.log('debounceFrom(): scope.preferText ==', scope.preferText, ', ngModel.$viewValue ==', ngModel.$viewValue);
-          if ((scope.preferText === true) && !angular.isObject(ngModel.$viewValue)) {
-            editor.setText(ngModel.$viewValue || '{}');
-          } else {
-            editor.set(ngModel.$viewValue || {});
-          }
-        }, getTimeoutOption());
       }
 
+      function onModelChangedExternally() {
+        setTextFromModelToJSONEditor(getEditor());
+      }
+
+      function onModelChangedInternally() {
+        var e = getEditor();
+        if (e === undefined || e === null) {
+          return;
+        }
+
+        var val;
+        if (scope.preferText) {
+          val = e.getText();
+        } else {
+          val = e.get();
+        }
+        ngModel.$setViewValue(val);
+
+        // need to call $apply() because this function is not called in angular js's digest context
+        scope.$apply();
+      }
+
+      function updateExpandCollapse() {
+        var e = getEditor();
+        if (e === undefined || e === null) {
+          return;
+        }
+
+        if (scope.expanded && e.expandAll) {
+          e.expandAll();
+        } else if (!scope.expanded && e.collapseAll) {
+          e.collapseAll();
+        }
+      }
+
+      function onEditorModeChanged() {
+        updateExpandCollapse();
+      }
+
+      function onExpandedChanged() {
+        updateExpandCollapse();
+      }
     }
 
   }

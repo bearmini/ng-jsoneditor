@@ -1,11 +1,10 @@
 {
   "name": "ng-jsoneditor",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Angular version of the insanely cool [jsoneditor](https://github.com/josdejong/jsoneditor)",
   "main": "ng-jsoneditor.js",
   "scripts": {
     "build": "./node_modules/uglify-js/bin/uglifyjs ng-jsoneditor.js > ng-jsoneditor.min.js",
-    "build2": "./node_modules/uglify-js/bin/uglifyjs ng-jsoneditor.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
