@@ -1,6 +1,6 @@
 {
   "name": "ng-jsoneditor",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "main": "ng-jsoneditor.min.js",
   "homepage": "https://github.com/bearmini/ng-jsoneditor",
   "authors": [
