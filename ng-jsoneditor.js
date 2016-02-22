@@ -1,5 +1,5 @@
 (function() {
-  var module = angular.module('ng.jsoneditor', []);
+  var module = angular.module('bearmini.jsoneditor', []);
 
   module.directive('ngJsoneditor', JsonEditorDirective);
 
